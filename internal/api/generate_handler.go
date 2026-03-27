@@ -72,17 +72,18 @@ func (gh *GenerateHandler) Generate(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	backendReq := backend.GenerateRequest{
-		SessionID:    req.SessionID,
-		Prompt:       req.Prompt,
-		MaxNewTokens: req.MaxNewTokens,
-		Temperature:  req.Temperature,
-		TopP:         req.TopP,
-		TopK:         req.TopK,
-		Stream:       req.Stream,
+	backendReq := &backend.GenerateRequest{
+		RequestID:   fmt.Sprintf("req-%d", time.Now().UnixNano()),
+		SessionID:   req.SessionID,
+		Prompt:      req.Prompt,
+		MaxTokens:   req.MaxNewTokens,
+		Temperature: req.Temperature,
+		TopP:        req.TopP,
+		TopK:        req.TopK,
+		Stream:      req.Stream,
 	}
 
-	result, err := gh.client.Generate(ctx, backendReq)
+	result, err := gh.client.Generate(ctx, *backendReq)
 	if err != nil {
 		log.Printf("Generate error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

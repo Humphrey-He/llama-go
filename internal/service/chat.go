@@ -2,19 +2,18 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"llama-go/internal/backend"
 	"llama-go/internal/session"
 )
 
 // ChatService 聊天服务
 type ChatService struct {
-	backend backend.LLMBackend
+	backend backend.InferenceBackend
 	store   *session.SessionStore
 }
 
 // NewChatService 创建聊天服务
-func NewChatService(b backend.LLMBackend, s *session.SessionStore) *ChatService {
+func NewChatService(b backend.InferenceBackend, s *session.SessionStore) *ChatService {
 	return &ChatService{
 		backend: b,
 		store:   s,
@@ -22,7 +21,7 @@ func NewChatService(b backend.LLMBackend, s *session.SessionStore) *ChatService 
 }
 
 // Chat 聊天
-func (cs *ChatService) Chat(ctx context.Context, req backend.ChatRequest) (*backend.ChatResponse, error) {
+func (cs *ChatService) Chat(ctx context.Context, req *backend.GenerateRequest) (*backend.GenerateResponse, error) {
 	// 获取会话历史
 	messages := cs.store.GetMessages(req.SessionID)
 
@@ -39,7 +38,7 @@ func (cs *ChatService) Chat(ctx context.Context, req backend.ChatRequest) (*back
 	req.Messages = allMessages
 
 	// 调用后端
-	resp, err := cs.backend.Chat(ctx, req)
+	resp, err := cs.backend.Generate(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -48,13 +47,13 @@ func (cs *ChatService) Chat(ctx context.Context, req backend.ChatRequest) (*back
 	for _, msg := range req.Messages {
 		cs.store.AddMessage(req.SessionID, msg.Role, msg.Content)
 	}
-	cs.store.AddMessage(req.SessionID, "assistant", resp.Content)
+	cs.store.AddMessage(req.SessionID, "assistant", resp.Text)
 
 	return resp, nil
 }
 
 // StreamChat 流式聊天
-func (cs *ChatService) StreamChat(ctx context.Context, req backend.ChatRequest) (<-chan backend.StreamChunk, error) {
+func (cs *ChatService) StreamChat(ctx context.Context, req *backend.GenerateRequest) (<-chan backend.StreamChunk, error) {
 	// 获取会话历史
 	messages := cs.store.GetMessages(req.SessionID)
 
@@ -71,7 +70,7 @@ func (cs *ChatService) StreamChat(ctx context.Context, req backend.ChatRequest) 
 	req.Messages = allMessages
 
 	// 调用后端流式接口
-	ch, err := cs.backend.StreamChat(ctx, req)
+	ch, err := cs.backend.GenerateStream(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -89,8 +88,8 @@ func (cs *ChatService) StreamChat(ctx context.Context, req backend.ChatRequest) 
 		var fullContent string
 		for chunk := range ch {
 			wrappedCh <- chunk
-			if chunk.Delta != "" {
-				fullContent += chunk.Delta
+			if chunk.Content != "" {
+				fullContent += chunk.Content
 			}
 		}
 

@@ -1,11 +1,12 @@
 package api
 
 import (
-	"fmt"
+	"context"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"llama-go/internal/backend"
 	"llama-go/internal/service"
 )
@@ -24,25 +25,25 @@ func NewHandler(cs *service.ChatService) *Handler {
 
 // ChatCompletions 聊天完成接口
 func (h *Handler) ChatCompletions(c *gin.Context) {
-	var req backend.ChatRequest
+	var req ChatCompletionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if req.SessionID == "" {
-		req.SessionID = "default"
-	}
+	sessionID := uuid.New().String()
+	genReq := AdaptToGenerateRequest(&req, sessionID)
+	genReq.RequestID = uuid.New().String()
 
 	if req.Stream {
-		h.streamChat(c, req)
+		h.streamChat(c, genReq)
 	} else {
-		h.chat(c, req)
+		h.chat(c, genReq)
 	}
 }
 
 // chat 非流式聊天
-func (h *Handler) chat(c *gin.Context, req backend.ChatRequest) {
+func (h *Handler) chat(c *gin.Context, req *backend.GenerateRequest) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
@@ -52,22 +53,11 @@ func (h *Handler) chat(c *gin.Context, req backend.ChatRequest) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"id":      fmt.Sprintf("req-%d", time.Now().UnixNano()),
-		"object":  "chat.completion",
-		"choices": []gin.H{{
-			"message": gin.H{
-				"role":    "assistant",
-				"content": resp.Content,
-			},
-			"finish_reason": "stop",
-		}},
-		"usage": resp.Usage,
-	})
+	c.JSON(http.StatusOK, AdaptFromGenerateResponse(resp, req.Model))
 }
 
 // streamChat 流式聊天
-func (h *Handler) streamChat(c *gin.Context, req backend.ChatRequest) {
+func (h *Handler) streamChat(c *gin.Context, req *backend.GenerateRequest) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
@@ -82,11 +72,8 @@ func (h *Handler) streamChat(c *gin.Context, req backend.ChatRequest) {
 	c.Header("Connection", "keep-alive")
 
 	for chunk := range ch {
-		if chunk.Done {
-			c.SSEvent("message", "[DONE]")
-		} else {
-			c.SSEvent("message", gin.H{"delta": chunk.Delta})
-		}
+		resp := AdaptStreamChunkToResponse(&chunk, req.RequestID, req.Model)
+		c.SSEvent("message", resp)
 	}
 }
 

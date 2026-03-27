@@ -42,7 +42,7 @@ func TestClearSession(t *testing.T) {
 	}
 }
 
-func TestSessionTTL(t *testing.T) {
+func TestStoreSessionTTL(t *testing.T) {
 	store := NewSessionStore()
 	sessionID := "test-session"
 

@@ -11,10 +11,12 @@ import (
 // MockBackend 模拟后端
 type MockBackend struct{}
 
-func (m *MockBackend) Chat(ctx context.Context, req backend.ChatRequest) (*backend.ChatResponse, error) {
-	return &backend.ChatResponse{
-		ID:      "test-id",
-		Content: "Test response",
+func (m *MockBackend) Generate(ctx context.Context, req *backend.GenerateRequest) (*backend.GenerateResponse, error) {
+	return &backend.GenerateResponse{
+		ID:           "test-id",
+		Model:        req.Model,
+		Text:         "Test response",
+		FinishReason: "stop",
 		Usage: backend.Usage{
 			PromptTokens:     10,
 			CompletionTokens: 5,
@@ -23,18 +25,26 @@ func (m *MockBackend) Chat(ctx context.Context, req backend.ChatRequest) (*backe
 	}, nil
 }
 
-func (m *MockBackend) StreamChat(ctx context.Context, req backend.ChatRequest) (<-chan backend.StreamChunk, error) {
+func (m *MockBackend) GenerateStream(ctx context.Context, req *backend.GenerateRequest) (<-chan backend.StreamChunk, error) {
 	ch := make(chan backend.StreamChunk)
 	go func() {
-		ch <- backend.StreamChunk{Delta: "Test"}
-		ch <- backend.StreamChunk{Done: true}
+		ch <- backend.StreamChunk{Content: "Test", Done: false}
+		ch <- backend.StreamChunk{Content: "", Done: true}
 		close(ch)
 	}()
 	return ch, nil
 }
 
-func (m *MockBackend) Health(ctx context.Context) error {
+func (m *MockBackend) ClearSession(ctx context.Context, sessionID string) error {
 	return nil
+}
+
+func (m *MockBackend) Info() backend.BackendInfo {
+	return backend.BackendInfo{
+		Name:           "mock",
+		SupportsStream: true,
+		MaxContextLen:  2048,
+	}
 }
 
 func TestNewChatService(t *testing.T) {
@@ -48,11 +58,11 @@ func TestNewChatService(t *testing.T) {
 }
 
 func TestChat(t *testing.T) {
-	backend := &MockBackend{}
+	b := &MockBackend{}
 	store := session.NewSessionStore()
-	service := NewChatService(backend, store)
+	service := NewChatService(b, store)
 
-	req := backend.ChatRequest{
+	req := &backend.GenerateRequest{
 		Model:     "test",
 		Messages:  []backend.Message{{Role: "user", Content: "Hello"}},
 		SessionID: "test-session",
@@ -63,13 +73,13 @@ func TestChat(t *testing.T) {
 		t.Errorf("Chat failed: %v", err)
 	}
 
-	if resp.Content != "Test response" {
-		t.Errorf("expected 'Test response', got '%s'", resp.Content)
+	if resp.Text != "Test response" {
+		t.Errorf("expected 'Test response', got '%s'", resp.Text)
 	}
 }
 
 func TestClearSession(t *testing.T) {
-	backend := &MockBackend
+	backend := &MockBackend{}
 	store := session.NewSessionStore()
 	service := NewChatService(backend, store)
 

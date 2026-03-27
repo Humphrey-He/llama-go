@@ -2,7 +2,6 @@ package governance
 
 import (
 	"sync"
-	"sync/atomic"
 )
 
 // ConcurrencyLimiter 并发限制器

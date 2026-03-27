@@ -154,6 +154,21 @@ func (v *VLLMBackend) GenerateStream(ctx context.Context, req *GenerateRequest) 
 	return ch, nil
 }
 
+// ClearSession 清空会话
+func (v *VLLMBackend) ClearSession(ctx context.Context, sessionID string) error {
+	return nil
+}
+
+// Info 获取后端信息
+func (v *VLLMBackend) Info() BackendInfo {
+	return BackendInfo{
+		Name:           "vllm",
+		SupportsStream: true,
+		MaxContextLen:  4096,
+		SupportedModels: []string{},
+	}
+}
+
 // Health 健康检查
 func (v *VLLMBackend) Health(ctx context.Context) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", v.baseURL+"/health", nil)

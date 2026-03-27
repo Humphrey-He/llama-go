@@ -1,6 +1,7 @@
 package kvcache
 
 import (
+	"llama-go/internal/config"
 	"sync"
 )
 
@@ -26,11 +27,19 @@ func NewKVCache() *KVCache {
 	}
 }
 
-// Set 写入缓存（写锁）
+// Set 写入缓存（写锁 + 滑动窗口）
 func (k *KVCache) Set(sessionID string, entry *CacheEntry) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	k.cache[sessionID] = append(k.cache[sessionID], entry)
+
+	entries := k.cache[sessionID]
+
+	// 滑动窗口：超过最大长度时删除最旧的
+	if len(entries) >= config.MaxCacheSize {
+		entries = entries[1:]
+	}
+
+	k.cache[sessionID] = append(entries, entry)
 }
 
 // Get 读取缓存（读锁，并发安全）

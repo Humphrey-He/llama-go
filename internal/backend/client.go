@@ -3,10 +3,10 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"llama-go/internal/config"
 	"net/http"
 )
-
-const PythonBackendURL = "http://localhost:8000/infer"
 
 // InferRequest 推理请求
 type InferRequest struct {
@@ -16,9 +16,9 @@ type InferRequest struct {
 
 // InferResponse 推理响应
 type InferResponse struct {
-	Text     string      `json:"text"`
-	KV       interface{} `json:"kv"`
-	TokenNum int         `json:"token_num"`
+	Text     string                 `json:"text"`
+	KV       map[string]interface{} `json:"kv"`
+	TokenNum int                    `json:"token_num"`
 }
 
 // CallPythonBackend 调用 Python 推理服务
@@ -27,15 +27,25 @@ func CallPythonBackend(prompt string, kv interface{}) (*InferResponse, error) {
 		Prompt:  prompt,
 		KVCache: kv,
 	}
-	jsonData, _ := json.Marshal(reqBody)
-
-	resp, err := http.Post(PythonBackendURL, "application/json", bytes.NewBuffer(jsonData))
+	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("marshal request failed: %w", err)
+	}
+
+	resp, err := http.Post(config.PythonBackendURL, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("http request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("python backend returned status %d", resp.StatusCode)
+	}
+
 	var result InferResponse
-	json.NewDecoder(resp.Body).Decode(&result)
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response failed: %w", err)
+	}
+
 	return &result, nil
 }

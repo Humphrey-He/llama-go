@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llama-go-config
+data:
+  backend_url: "http://python-backend:8000"
+  log_level: "info"
+  metrics_enabled: "true"
+  timeout_request: "30s"
+  timeout_backend: "25s"
+  timeout_stream_idle: "5m"
+  retry_max_attempts: "2"
+  circuit_breaker_threshold: "5"
+  rate_limit_rps: "100"
+  max_concurrent_requests: "50"

@@ -1,22 +1,17 @@
 FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod download
-
 COPY . .
-RUN CGO_ENABLED=1 GOOS=linux go build -o bin/llama cmd/llama/main.go
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -o inference ./cmd/inference
 
 FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
+WORKDIR /root/
 
-WORKDIR /app
-
-COPY --from=builder /app/bin/llama .
-COPY config/ config/
+COPY --from=builder /app/inference .
 
 EXPOSE 8080
 
-ENTRYPOINT ["./llama"]
+CMD ["./inference"]

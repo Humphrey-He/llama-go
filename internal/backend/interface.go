@@ -8,28 +8,34 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-// ChatRequest 聊天请求
-type ChatRequest struct {
-	Model       string     `json:"model"`
-	Messages    []Message  `json:"messages"`
-	Temperature float32    `json:"temperature"`
-	TopP        float32    `json:"top_p"`
-	MaxTokens   int        `json:"max_tokens"`
-	Stream      bool       `json:"stream"`
-	SessionID   string     `json:"session_id"`
+// GenerateRequest 统一生成请求
+type GenerateRequest struct {
+	RequestID   string    `json:"request_id"`
+	SessionID   string    `json:"session_id"`
+	Model       string    `json:"model"`
+	Prompt      string    `json:"prompt"`
+	Messages    []Message `json:"messages"`
+	MaxTokens   int       `json:"max_tokens"`
+	Temperature float64   `json:"temperature"`
+	TopP        float64   `json:"top_p"`
+	TopK        int       `json:"top_k"`
+	Stream      bool      `json:"stream"`
+	Stop        []string  `json:"stop"`
 }
 
-// ChatResponse 聊天响应
-type ChatResponse struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
-	Usage   Usage  `json:"usage"`
+// GenerateResponse 统一生成响应
+type GenerateResponse struct {
+	ID           string `json:"id"`
+	Model        string `json:"model"`
+	Text         string `json:"text"`
+	FinishReason string `json:"finish_reason"`
+	Usage        Usage  `json:"usage"`
 }
 
 // StreamChunk 流式数据块
 type StreamChunk struct {
-	Delta string `json:"delta"`
-	Done  bool   `json:"done"`
+	Content string `json:"content"`
+	Done    bool   `json:"done"`
 }
 
 // Usage token 使用统计
@@ -39,9 +45,18 @@ type Usage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
-// LLMBackend LLM 后端接口
-type LLMBackend interface {
-	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
-	StreamChat(ctx context.Context, req ChatRequest) (<-chan StreamChunk, error)
-	Health(ctx context.Context) error
+// BackendInfo 后端信息
+type BackendInfo struct {
+	Name            string
+	SupportsStream  bool
+	MaxContextLen   int
+	SupportedModels []string
+}
+
+// InferenceBackend 推理后端接口
+type InferenceBackend interface {
+	Generate(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error)
+	GenerateStream(ctx context.Context, req *GenerateRequest) (<-chan StreamChunk, error)
+	ClearSession(ctx context.Context, sessionID string) error
+	Info() BackendInfo
 }

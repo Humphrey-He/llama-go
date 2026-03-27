@@ -1,7 +1,6 @@
 package backend
 
 import (
-	"context"
 	"testing"
 )
 
@@ -17,14 +16,15 @@ func TestNewInferenceClient(t *testing.T) {
 
 func TestGenerateRequest(t *testing.T) {
 	req := GenerateRequest{
-		SessionID:    "test-session",
-		Prompt:       "Hello",
-		MaxNewTokens: 128,
-		Temperature:  0.7,
-		TopP:         0.9,
+		SessionID:   "test-session",
+		Prompt:      "Hello",
+		MaxTokens:   128,
+		Temperature: 0.7,
+		TopP:        0.9,
 	}
 
 	if req.SessionID != "test-session" {
 		t.Errorf("expected session_id test-session, got %s", req.SessionID)
 	}
 }
+

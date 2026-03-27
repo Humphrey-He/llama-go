@@ -25,8 +25,8 @@ func NewVLLMBackend(baseURL string) *VLLMBackend {
 	}
 }
 
-// Chat 非流式聊天
-func (v *VLLMBackend) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+// Generate 非流式生成
+func (v *VLLMBackend) Generate(ctx context.Context, req *GenerateRequest) (*GenerateResponse, error) {
 	payload := map[string]interface{}{
 		"model":       req.Model,
 		"messages":    req.Messages,
@@ -63,9 +63,11 @@ func (v *VLLMBackend) Chat(ctx context.Context, req ChatRequest) (*ChatResponse,
 	content := message["content"].(string)
 
 	usage := result["usage"].(map[string]interface{})
-	return &ChatResponse{
-		ID:      result["id"].(string),
-		Content: content,
+	return &GenerateResponse{
+		ID:           result["id"].(string),
+		Model:        req.Model,
+		Text:         content,
+		FinishReason: "stop",
 		Usage: Usage{
 			PromptTokens:     int(usage["prompt_tokens"].(float64)),
 			CompletionTokens: int(usage["completion_tokens"].(float64)),
@@ -74,8 +76,8 @@ func (v *VLLMBackend) Chat(ctx context.Context, req ChatRequest) (*ChatResponse,
 	}, nil
 }
 
-// StreamChat 流式聊天
-func (v *VLLMBackend) StreamChat(ctx context.Context, req ChatRequest) (<-chan StreamChunk, error) {
+// GenerateStream 流式生成
+func (v *VLLMBackend) GenerateStream(ctx context.Context, req *GenerateRequest) (<-chan StreamChunk, error) {
 	ch := make(chan StreamChunk)
 
 	payload := map[string]interface{}{
@@ -138,7 +140,7 @@ func (v *VLLMBackend) StreamChat(ctx context.Context, req ChatRequest) (<-chan S
 				if len(choices) > 0 {
 					delta := choices[0].(map[string]interface{})["delta"].(map[string]interface{})
 					if content, ok := delta["content"].(string); ok {
-						ch <- StreamChunk{Delta: content}
+						ch <- StreamChunk{Content: content}
 					}
 				}
 			}

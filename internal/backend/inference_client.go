@@ -15,24 +15,7 @@ type InferenceClient struct {
 	client  *http.Client
 }
 
-// GenerateRequest 生成请求
-type GenerateRequest struct {
-	SessionID    string  `json:"session_id"`
-	Prompt       string  `json:"prompt"`
-	MaxNewTokens int     `json:"max_new_tokens"`
-	Temperature  float64 `json:"temperature"`
-	TopP         float64 `json:"top_p"`
-	TopK         int     `json:"top_k"`
-	Stream       bool    `json:"stream"`
-}
-
-// GenerateResponse 生成响应
-type GenerateResponse struct {
-	Success bool   `json:"success"`
-	Data    Result `json:"data"`
-}
-
-// Result 推理结果
+// Result 推理结果（Python 响应包装）
 type Result struct {
 	SessionID       string  `json:"session_id"`
 	GeneratedText   string  `json:"generated_text"`
@@ -42,6 +25,12 @@ type Result struct {
 	Mode            string  `json:"mode"`
 	TTFTMS          float64 `json:"ttft_ms"`
 	TotalLatencyMS  float64 `json:"total_latency_ms"`
+}
+
+// PythonGenerateResponse Python 推理响应包装
+type PythonGenerateResponse struct {
+	Success bool   `json:"success"`
+	Data    Result `json:"data"`
 }
 
 // NewInferenceClient 创建推理客户端
@@ -78,7 +67,7 @@ func (ic *InferenceClient) Generate(ctx context.Context, req GenerateRequest) (*
 		return nil, fmt.Errorf("inference failed: %d", resp.StatusCode)
 	}
 
-	var result GenerateResponse
+	var result PythonGenerateResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}

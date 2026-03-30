@@ -140,14 +140,6 @@ func (gh *GenerateHandler) ClearSession(c *gin.Context) {
 
 // Health 健康检查
 func (gh *GenerateHandler) Health(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
-	defer cancel()
-
-	if err := gh.client.Health(ctx); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy"})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 

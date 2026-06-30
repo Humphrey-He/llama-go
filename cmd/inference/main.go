@@ -2,44 +2,103 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"llama-go/internal/api"
-	"llama-go/internal/backend"
+	"llama-go/internal/config"
 	"llama-go/internal/model"
+	"llama-go/internal/plugin"
+	"llama-go/internal/plugin/llamacpp"
+	"llama-go/internal/plugin/ollama"
 )
 
 func main() {
+	// 加载配置
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		log.Fatalf("Load config: %v", err)
+	}
+
+	// 初始化插件管理器
+	pm := plugin.NewManager()
+
+	// 注册可用插件
+	pluginFactories := map[string]func() plugin.Plugin{
+		"llama-cpp": llamacpp.New,
+		"ollama":    ollama.New,
+	}
+
+	// 初始化启用的插件
+	ctx := context.Background()
+	for name, factory := range pluginFactories {
+		pluginCfg, ok := cfg.Plugins[name]
+		if !ok || !pluginCfg.Enabled {
+			continue
+		}
+
+		p := factory()
+		config := map[string]interface{}{
+			"base_url": pluginCfg.BaseURL,
+		}
+
+		if err := p.Init(ctx, config); err != nil {
+			log.Printf("Init plugin %s failed: %v", name, err)
+			continue
+		}
+
+		if err := pm.Register(name, p); err != nil {
+			log.Fatalf("Register plugin %s: %v", name, err)
+		}
+		log.Printf("Plugin loaded: %s v%s", p.Name(), p.Version())
+	}
+
 	// 初始化模型注册表
 	registry := model.NewModelRegistry()
 
-	// 注册 Python 后端
-	pythonBackend := backend.NewPythonBackend("http://localhost:8000")
-	registry.Register("tinyllama-chat", pythonBackend)
+	// 注册模型到插件
+	for pluginName, pluginCfg := range cfg.Plugins {
+		if !pluginCfg.Enabled {
+			continue
+		}
 
-	// 注册模拟后端（用于测试）
-	mockBackend := backend.NewMockBackend()
-	registry.Register("mock-model", mockBackend)
+		p, err := pm.Get(pluginName)
+		if err != nil {
+			continue
+		}
+
+		for _, modelID := range pluginCfg.Models {
+			registry.Register(modelID, p)
+			log.Printf("Model registered: %s -> %s", modelID, pluginName)
+		}
+	}
 
 	// 初始化 Gin
 	r := gin.Default()
 
-	// 健康检查端点
+	// 健康检查
 	r.GET("/healthz", func(c *gin.Context) {
-		// Liveness: 仅检查进程是否存活
 		c.JSON(http.StatusOK, gin.H{"status": "alive"})
 	})
 
 	r.GET("/readyz", func(c *gin.Context) {
-		// Readiness: 检查是否能提供完整服务（包括后端连接）
-		_, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()
 
-		// 检查后端连接
-		_ = pythonBackend.Info()
+		for _, name := range pm.List() {
+			p, _ := pm.Get(name)
+			if err := p.Health(ctx); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{
+					"status": "unhealthy",
+					"plugin": name,
+					"error":  err.Error(),
+				})
+				return
+			}
+		}
 
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
@@ -47,8 +106,9 @@ func main() {
 	// 注册 OpenAI 兼容路由
 	api.RegisterOpenAIRoutes(r, registry)
 
-	log.Println("Starting inference server on :8080")
-	if err := r.Run(":8080"); err != nil {
+	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	log.Printf("Starting inference server on %s", addr)
+	if err := r.Run(addr); err != nil {
 		log.Fatal(err)
 	}
 }

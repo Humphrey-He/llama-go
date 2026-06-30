@@ -1,0 +1,22 @@
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+plugins:
+  llama-cpp:
+    enabled: false
+    base_url: "http://localhost:8000"
+    models:
+      - "tinyllama-chat"
+
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    models:
+      - "llama3.1:8b"
+
+  vllm:
+    enabled: false
+    base_url: "http://localhost:8001"
+    models:
+      - "dolphin-llama"
